@@ -18,10 +18,7 @@ html, body {
   overflow: hidden;
   touch-action: manipulation;
 }
-
-canvas, button {
-  touch-action: manipulation;
-}
+canvas, button { touch-action: manipulation; }
 
 #wrap {
   display: grid;
@@ -30,26 +27,16 @@ canvas, button {
   justify-content: center;
   align-content: center;
 }
+canvas { background: #111; }
 
-canvas {
-  background: #111;
-}
-
-#side {
-  padding: 8px;
-  box-sizing: border-box;
-}
+#side { padding: 8px; box-sizing: border-box; }
 
 #ui {
   display: flex;
   justify-content: space-around;
   margin-top: 8px;
 }
-
-button {
-  font-size: 16px;
-  padding: 8px;
-}
+button { font-size: 16px; padding: 8px; }
 </style>
 </head>
 
@@ -77,22 +64,21 @@ button {
 </div>
 
 <script>
-/* ===== Safari ダブルタップズーム対策（button除外） ===== */
-let lastTouchEnd = 0;
-document.addEventListener("touchend", e => {
-  if (e.target.closest("button")) return;
-  const now = Date.now();
-  if (now - lastTouchEnd <= 300) e.preventDefault();
-  lastTouchEnd = now;
-}, { passive: false });
+/* ===== Safariズーム対策（button除外） ===== */
+let lastTouchEnd=0;
+document.addEventListener("touchend",e=>{
+  if(e.target.closest("button"))return;
+  const n=Date.now();
+  if(n-lastTouchEnd<=300)e.preventDefault();
+  lastTouchEnd=n;
+},{passive:false});
 
 /* ===== 定数 ===== */
-const COLS = 10, ROWS = 20, BLOCK = 20;
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const COLS=10,ROWS=20,BLOCK=20;
+const ctx=document.getElementById("game").getContext("2d");
 
-const COLORS = [null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
-const SHAPES = [
+const COLORS=[null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
+const SHAPES=[
  [],
  [[1,1,1,1]],
  [[2,0,0],[2,2,2]],
@@ -104,192 +90,170 @@ const SHAPES = [
 ];
 
 /* ===== 状態 ===== */
-let board, piece, nextPiece;
-let score, lines, level;
-let paused=false, gameOver=false;
-let softDrop=false;
-let last=0, counter=0;
+let board,piece,nextPiece;
+let score,lines,level;
+let paused=false,gameOver=false;
+let softDrop=false,last=0,counter=0;
 
 /* ===== 7種バッグ ===== */
-let bag = [];
-
-function refillBag() {
-  bag = [1,2,3,4,5,6,7];
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
+let bag=[];
+function refillBag(){
+  bag=[1,2,3,4,5,6,7];
+  for(let i=6;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [bag[i],bag[j]]=[bag[j],bag[i]];
   }
 }
-
-function getFromBag() {
-  if (bag.length === 0) refillBag();
-  return bag.pop();
-}
+function getFromBag(){ if(!bag.length)refillBag(); return bag.pop(); }
 
 /* ===== 初期化 ===== */
-function reset() {
-  board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-  score = lines = level = 0;
+function reset(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  score=lines=level=0;
   refillBag();
-  piece = newPiece();
-  nextPiece = newPiece();
-  paused = gameOver = false;
-  document.getElementById("over").style.display = "none";
-  updateInfo();
-  drawNext();
+  piece=newPiece();
+  nextPiece=newPiece();
+  paused=gameOver=false;
+  document.getElementById("over").style.display="none";
+  updateInfo(); drawNext();
 }
 
-/* ===== ピース生成 ===== */
-function newPiece() {
-  const t = getFromBag();
-  return { x: 3, y: 0, shape: SHAPES[t], type: t };
+/* ===== ピース ===== */
+function newPiece(){
+  const t=getFromBag();
+  return {x:3,y:0,shape:SHAPES[t],type:t,rot:0};
 }
 
-/* ===== 衝突判定 ===== */
-function collide(p, ox, oy) {
-  for (let y = 0; y < p.shape.length; y++)
-    for (let x = 0; x < p.shape[y].length; x++)
-      if (p.shape[y][x]) {
-        const nx = p.x + x + ox;
-        const ny = p.y + y + oy;
-        if (nx < 0 || nx >= COLS || ny >= ROWS || board[ny]?.[nx]) return true;
+/* ===== 衝突 ===== */
+function collide(p,ox,oy){
+  for(let y=0;y<p.shape.length;y++)
+    for(let x=0;x<p.shape[y].length;x++)
+      if(p.shape[y][x]){
+        const nx=p.x+x+ox, ny=p.y+y+oy;
+        if(nx<0||nx>=COLS||ny>=ROWS||board[ny]?.[nx])return true;
       }
   return false;
 }
 
 /* ===== 回転 ===== */
-function rotateMatrix(m) {
-  return m[0].map((_, i) => m.map(r => r[i]).reverse());
+function rotateMatrix(m){
+  return m[0].map((_,i)=>m.map(r=>r[i]).reverse());
+}
+
+/* ===== SRS簡易壁蹴り ===== */
+const kicks=[[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0]];
+function tryRotate(){
+  const r=rotateMatrix(piece.shape);
+  for(const[kx,ky]of kicks){
+    if(!collide({...piece,shape:r},kx,ky)){
+      piece.shape=r;
+      piece.x+=kx;
+      piece.y+=ky;
+      piece.rot=(piece.rot+1)%4;
+      return;
+    }
+  }
 }
 
 /* ===== 固定 ===== */
-function merge() {
-  piece.shape.forEach((r, y) =>
-    r.forEach((v, x) => {
-      if (v) board[piece.y + y][piece.x + x] = piece.type;
-    })
+function merge(){
+  piece.shape.forEach((r,y)=>
+    r.forEach((v,x)=>{ if(v)board[piece.y+y][piece.x+x]=piece.type; })
   );
 }
 
-/* ===== ライン消去 & スコア ===== */
-function clearLines() {
-  let c = 0;
-  board = board.filter(r => {
-    if (r.every(v => v)) { c++; return false; }
-    return true;
-  });
-  while (board.length < ROWS) board.unshift(Array(COLS).fill(0));
-
-  if (c) {
-    const table = [0, 40, 100, 300, 1200];
-    score += table[c] * (level + 1);
-    lines += c;
-    level = Math.floor(lines / 10);
+/* ===== 消去 & スコア ===== */
+function clearLines(){
+  let c=0;
+  board=board.filter(r=>{ if(r.every(v=>v)){c++;return false;} return true;});
+  while(board.length<ROWS)board.unshift(Array(COLS).fill(0));
+  if(c){
+    const t=[0,40,100,300,1200];
+    score+=t[c]*(level+1);
+    lines+=c;
+    level=Math.floor(lines/10);
     updateInfo();
   }
 }
 
 /* ===== 描画 ===== */
-function drawGrid() {
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= COLS; x++) {
-    ctx.beginPath();
-    ctx.moveTo(x * BLOCK, 0);
-    ctx.lineTo(x * BLOCK, ROWS * BLOCK);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= ROWS; y++) {
-    ctx.beginPath();
-    ctx.moveTo(0, y * BLOCK);
-    ctx.lineTo(COLS * BLOCK, y * BLOCK);
-    ctx.stroke();
-  }
+function drawGrid(){
+  ctx.strokeStyle="rgba(255,255,255,0.08)";
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*BLOCK,0);ctx.lineTo(x*BLOCK,ROWS*BLOCK);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*BLOCK);ctx.lineTo(COLS*BLOCK,y*BLOCK);ctx.stroke();}
+}
+function block(x,y,c,a=1){
+  ctx.globalAlpha=a;
+  ctx.fillStyle=c;
+  ctx.fillRect(x*BLOCK,y*BLOCK,BLOCK-1,BLOCK-1);
+  ctx.globalAlpha=1;
 }
 
-function block(x, y, c) {
-  ctx.fillStyle = c;
-  ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK - 1, BLOCK - 1);
+/* ===== ゴーストピース ===== */
+function drawGhost(){
+  let gy=piece.y;
+  while(!collide(piece,0,gy-piece.y+1))gy++;
+  piece.shape.forEach((r,y)=>
+    r.forEach((v,x)=>{ if(v)block(piece.x+x,gy+y,COLORS[piece.type],0.3); })
+  );
 }
 
-function draw() {
-  ctx.clearRect(0, 0, 200, 400);
+function draw(){
+  ctx.clearRect(0,0,200,400);
   drawGrid();
-  board.forEach((r, y) => r.forEach((v, x) => v && block(x, y, COLORS[v])));
-  piece.shape.forEach((r, y) =>
-    r.forEach((v, x) => v && block(piece.x + x, piece.y + y, COLORS[piece.type]))
-  );
+  drawGhost();
+  board.forEach((r,y)=>r.forEach((v,x)=>v&&block(x,y,COLORS[v])));
+  piece.shape.forEach((r,y)=>r.forEach((v,x)=>v&&block(piece.x+x,piece.y+y,COLORS[piece.type])));
 }
 
-/* ===== NEXT表示 ===== */
-function drawNext() {
-  const n = document.getElementById("next").getContext("2d");
-  n.clearRect(0, 0, 80, 80);
-  const s = nextPiece.shape;
-  const ox = (4 - s[0].length) / 2;
-  const oy = (4 - s.length) / 2;
-  s.forEach((r, y) =>
-    r.forEach((v, x) => {
-      if (v) {
-        n.fillStyle = COLORS[nextPiece.type];
-        n.fillRect((x + ox) * 20, (y + oy) * 20, 18, 18);
-      }
-    })
-  );
+/* ===== NEXT ===== */
+function drawNext(){
+  const n=document.getElementById("next").getContext("2d");
+  n.clearRect(0,0,80,80);
+  const s=nextPiece.shape;
+  const ox=(4-s[0].length)/2, oy=(4-s.length)/2;
+  s.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){n.fillStyle=COLORS[nextPiece.type];n.fillRect((x+ox)*20,(y+oy)*20,18,18);}
+  }));
 }
 
-/* ===== UI更新 ===== */
-function updateInfo() {
-  scoreEl.textContent = score;
-  levelEl.textContent = level;
+/* ===== UI ===== */
+function updateInfo(){
+  scoreEl.textContent=score;
+  levelEl.textContent=level;
 }
 
-/* ===== メインループ ===== */
-function update(t = 0) {
-  if (paused || gameOver) { requestAnimationFrame(update); return; }
-  const d = t - last; last = t; counter += d;
-  const interval = softDrop ? 50 : Math.max(100, 700 - level * 50);
-
-  if (counter > interval) {
-    if (!collide(piece, 0, 1)) piece.y++;
-    else {
-      merge();
-      clearLines();
-      piece = nextPiece;
-      nextPiece = newPiece();
-      drawNext();
-      if (collide(piece, 0, 0)) {
-        gameOver = true;
-        document.getElementById("over").style.display = "block";
-      }
+/* ===== ループ ===== */
+function update(t=0){
+  if(paused||gameOver){requestAnimationFrame(update);return;}
+  const d=t-last; last=t; counter+=d;
+  const intv=softDrop?50:Math.max(100,700-level*50);
+  if(counter>intv){
+    if(!collide(piece,0,1))piece.y++;
+    else{
+      merge(); clearLines();
+      piece=nextPiece; nextPiece=newPiece(); drawNext();
+      if(collide(piece,0,0)){gameOver=true;document.getElementById("over").style.display="block";}
     }
-    counter = 0;
+    counter=0;
   }
-  draw();
-  requestAnimationFrame(update);
+  draw(); requestAnimationFrame(update);
 }
 
 /* ===== 操作 ===== */
-left.ontouchstart   = () => !collide(piece, -1, 0) && piece.x--;
-right.ontouchstart  = () => !collide(piece, 1, 0) && piece.x++;
+left.ontouchstart=()=>!collide(piece,-1,0)&&piece.x--;
+right.ontouchstart=()=>!collide(piece,1,0)&&piece.x--;
+rotate.ontouchstart=tryRotate;
+down.ontouchstart=()=>softDrop=true;
+down.ontouchend=()=>softDrop=false;
+pause.ontouchstart=()=>paused=!paused;
+restart.ontouchstart=reset;
 
-rotate.ontouchstart = () => {
-  const r = rotateMatrix(piece.shape);
-  if (!collide({ ...piece, shape: r }, 0, 0)) piece.shape = r;
-};
-
-down.ontouchstart = () => softDrop = true;
-down.ontouchend   = () => softDrop = false;
-
-pause.ontouchstart   = () => paused = !paused;
-restart.ontouchstart = reset;
-
-const scoreEl = document.getElementById("score");
-const levelEl = document.getElementById("level");
+const scoreEl=document.getElementById("score");
+const levelEl=document.getElementById("level");
 
 /* ===== 起動 ===== */
-reset();
-update();
+reset(); update();
 </script>
 </body>
 </html>
