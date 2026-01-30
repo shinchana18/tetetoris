@@ -82,9 +82,7 @@ let lastTouchEnd = 0;
 document.addEventListener("touchend", e => {
   if (e.target.closest("button")) return;
   const now = Date.now();
-  if (now - lastTouchEnd <= 300) {
-    e.preventDefault();
-  }
+  if (now - lastTouchEnd <= 300) e.preventDefault();
   lastTouchEnd = now;
 }, { passive: false });
 
@@ -108,14 +106,31 @@ const SHAPES = [
 /* ===== 状態 ===== */
 let board, piece, nextPiece;
 let score, lines, level;
-let paused = false, gameOver = false;
-let softDrop = false;
-let last = 0, counter = 0;
+let paused=false, gameOver=false;
+let softDrop=false;
+let last=0, counter=0;
+
+/* ===== 7種バッグ ===== */
+let bag = [];
+
+function refillBag() {
+  bag = [1,2,3,4,5,6,7];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+}
+
+function getFromBag() {
+  if (bag.length === 0) refillBag();
+  return bag.pop();
+}
 
 /* ===== 初期化 ===== */
 function reset() {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
   score = lines = level = 0;
+  refillBag();
   piece = newPiece();
   nextPiece = newPiece();
   paused = gameOver = false;
@@ -126,7 +141,7 @@ function reset() {
 
 /* ===== ピース生成 ===== */
 function newPiece() {
-  const t = Math.floor(Math.random() * 7) + 1;
+  const t = getFromBag();
   return { x: 3, y: 0, shape: SHAPES[t], type: t };
 }
 
@@ -175,6 +190,23 @@ function clearLines() {
 }
 
 /* ===== 描画 ===== */
+function drawGrid() {
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * BLOCK, 0);
+    ctx.lineTo(x * BLOCK, ROWS * BLOCK);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * BLOCK);
+    ctx.lineTo(COLS * BLOCK, y * BLOCK);
+    ctx.stroke();
+  }
+}
+
 function block(x, y, c) {
   ctx.fillStyle = c;
   ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK - 1, BLOCK - 1);
@@ -182,6 +214,7 @@ function block(x, y, c) {
 
 function draw() {
   ctx.clearRect(0, 0, 200, 400);
+  drawGrid();
   board.forEach((r, y) => r.forEach((v, x) => v && block(x, y, COLORS[v])));
   piece.shape.forEach((r, y) =>
     r.forEach((v, x) => v && block(piece.x + x, piece.y + y, COLORS[piece.type]))
@@ -237,8 +270,8 @@ function update(t = 0) {
 }
 
 /* ===== 操作 ===== */
-left.ontouchstart = () => !collide(piece, -1, 0) && piece.x--;
-right.ontouchstart = () => !collide(piece, 1, 0) && piece.x++;
+left.ontouchstart   = () => !collide(piece, -1, 0) && piece.x--;
+right.ontouchstart  = () => !collide(piece, 1, 0) && piece.x++;
 
 rotate.ontouchstart = () => {
   const r = rotateMatrix(piece.shape);
@@ -248,7 +281,7 @@ rotate.ontouchstart = () => {
 down.ontouchstart = () => softDrop = true;
 down.ontouchend   = () => softDrop = false;
 
-pause.ontouchstart = () => paused = !paused;
+pause.ontouchstart   = () => paused = !paused;
 restart.ontouchstart = reset;
 
 const scoreEl = document.getElementById("score");
