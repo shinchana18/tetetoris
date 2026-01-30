@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tetris</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: #111;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="240" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const COLS = 10;
+const ROWS = 20;
+const BLOCK = 20;
+
+const COLORS = [
+  null,
+  "#0ff", "#00f", "#f80", "#ff0",
+  "#0f0", "#f00", "#a0f"
+];
+
+const SHAPES = [
+  [],
+  [[1,1,1,1]],                 // I
+  [[2,0,0],[2,2,2]],           // J
+  [[0,0,3],[3,3,3]],           // L
+  [[4,4],[4,4]],               // O
+  [[0,5,5],[5,5,0]],           // S
+  [[0,6,0],[6,6,6]],           // T
+  [[7,7,0],[0,7,7]]            // Z
+];
+
+let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+
+function rotate(matrix) {
+  return matrix[0].map((_, i) =>
+    matrix.map(row => row[i]).reverse()
+  );
+}
+
+function collide(piece, offsetX, offsetY) {
+  for (let y = 0; y < piece.shape.length; y++) {
+    for (let x = 0; x < piece.shape[y].length; x++) {
+      if (piece.shape[y][x]) {
+        let nx = piece.x + x + offsetX;
+        let ny = piece.y + y + offsetY;
+        if (nx < 0 || nx >= COLS || ny >= ROWS || board[ny]?.[nx]) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function merge(piece) {
+  piece.shape.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) board[piece.y + y][piece.x + x] = value;
+    });
+  });
+}
+
+function clearLines() {
+  board = board.filter(row => row.some(cell => !cell));
+  while (board.length < ROWS) board.unshift(Array(COLS).fill(0));
+}
+
+function newPiece() {
+  const type = Math.floor(Math.random() * 7) + 1;
+  return {
+    x: 3,
+    y: 0,
+    shape: SHAPES[type],
+    color: COLORS[type]
+  };
+}
+
+let piece = newPiece();
+let dropCounter = 0;
+let dropInterval = 700;
+let lastTime = 0;
+
+function update(time = 0) {
+  const delta = time - lastTime;
+  lastTime = time;
+  dropCounter += delta;
+
+  if (dropCounter > dropInterval) {
+    if (!collide(piece, 0, 1)) {
+      piece.y++;
+    } else {
+      merge(piece);
+      clearLines();
+      piece = newPiece();
+    }
+    dropCounter = 0;
+  }
+
+  draw();
+  requestAnimationFrame(update);
+}
+
+function drawBlock(x, y, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK - 1, BLOCK - 1);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  board.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) drawBlock(x, y, COLORS[value]);
+    });
+  });
+
+  piece.shape.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) drawBlock(piece.x + x, piece.y + y, piece.color);
+    });
+  });
+}
+
+/* タッチ操作（iPhone向け） */
+canvas.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  const x = t.clientX / window.innerWidth;
+  const y = t.clientY / window.innerHeight;
+
+  if (y < 0.3) {
+    const rotated = rotate(piece.shape);
+    if (!collide({ ...piece, shape: rotated }, 0, 0)) {
+      piece.shape = rotated;
+    }
+  } else if (x < 0.33) {
+    if (!collide(piece, -1, 0)) piece.x--;
+  } else if (x > 0.66) {
+    if (!collide(piece, 1, 0)) piece.x++;
+  } else {
+    if (!collide(piece, 0, 1)) piece.y++;
+  }
+});
+
+update();
+</script>
+
+</body>
+</html>
