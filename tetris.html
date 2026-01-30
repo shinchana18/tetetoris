@@ -54,12 +54,12 @@ function rotate(matrix) {
   );
 }
 
-function collide(piece, offsetX, offsetY) {
-  for (let y = 0; y < piece.shape.length; y++) {
-    for (let x = 0; x < piece.shape[y].length; x++) {
-      if (piece.shape[y][x]) {
-        let nx = piece.x + x + offsetX;
-        let ny = piece.y + y + offsetY;
+function collide(p, ox, oy) {
+  for (let y = 0; y < p.shape.length; y++) {
+    for (let x = 0; x < p.shape[y].length; x++) {
+      if (p.shape[y][x]) {
+        let nx = p.x + x + ox;
+        let ny = p.y + y + oy;
         if (nx < 0 || nx >= COLS || ny >= ROWS || board[ny]?.[nx]) {
           return true;
         }
@@ -69,16 +69,16 @@ function collide(piece, offsetX, offsetY) {
   return false;
 }
 
-function merge(piece) {
-  piece.shape.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value) board[piece.y + y][piece.x + x] = value;
+function merge(p) {
+  p.shape.forEach((row, y) => {
+    row.forEach((v, x) => {
+      if (v) board[p.y + y][p.x + x] = v;
     });
   });
 }
 
 function clearLines() {
-  board = board.filter(row => row.some(cell => !cell));
+  board = board.filter(row => row.some(c => !c));
   while (board.length < ROWS) board.unshift(Array(COLS).fill(0));
 }
 
@@ -90,6 +90,28 @@ function newPiece() {
     shape: SHAPES[type],
     color: COLORS[type]
   };
+}
+
+function tryRotate() {
+  const rotated = rotate(piece.shape);
+  const offsets = [0, -1, 1, -2, 2];
+  for (let o of offsets) {
+    if (!collide({ ...piece, shape: rotated }, o, 0)) {
+      piece.shape = rotated;
+      piece.x += o;
+      return;
+    }
+  }
+}
+
+function hardDrop() {
+  while (!collide(piece, 0, 1)) {
+    piece.y++;
+  }
+  merge(piece);
+  clearLines();
+  piece = newPiece();
+  dropCounter = 0;
 }
 
 let piece = newPiece();
@@ -126,35 +148,32 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   board.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value) drawBlock(x, y, COLORS[value]);
+    row.forEach((v, x) => {
+      if (v) drawBlock(x, y, COLORS[v]);
     });
   });
 
   piece.shape.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value) drawBlock(piece.x + x, piece.y + y, piece.color);
+    row.forEach((v, x) => {
+      if (v) drawBlock(piece.x + x, piece.y + y, piece.color);
     });
   });
 }
 
-/* タッチ操作（iPhone向け） */
+/* タッチ操作 */
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   const x = t.clientX / window.innerWidth;
   const y = t.clientY / window.innerHeight;
 
   if (y < 0.3) {
-    const rotated = rotate(piece.shape);
-    if (!collide({ ...piece, shape: rotated }, 0, 0)) {
-      piece.shape = rotated;
-    }
+    tryRotate();
   } else if (x < 0.33) {
     if (!collide(piece, -1, 0)) piece.x--;
   } else if (x > 0.66) {
     if (!collide(piece, 1, 0)) piece.x++;
   } else {
-    if (!collide(piece, 0, 1)) piece.y++;
+    hardDrop();
   }
 });
 
