@@ -22,7 +22,7 @@ canvas, button { touch-action: manipulation; }
 
 #wrap {
   display: grid;
-  grid-template-columns: 200px 120px;
+  grid-template-columns: 200px 140px;
   height: 100%;
   justify-content: center;
   align-content: center;
@@ -36,7 +36,7 @@ canvas { background: #111; }
   justify-content: space-around;
   margin-top: 8px;
 }
-button { font-size: 16px; padding: 8px; }
+button { font-size: 16px; padding: 6px; }
 </style>
 </head>
 
@@ -49,14 +49,20 @@ button { font-size: 16px; padding: 8px; }
       <button id="rotate">⟳</button>
       <button id="right">▶</button>
       <button id="down">▼</button>
+      <button id="hold">HOLD</button>
     </div>
   </div>
 
   <div id="side">
     SCORE<br><span id="score">0</span><br><br>
     LEVEL<br><span id="level">0</span><br><br>
+
+    HOLD<br>
+    <canvas id="holdView" width="80" height="80"></canvas><br>
+
     NEXT<br>
     <canvas id="next" width="80" height="80"></canvas><br>
+
     <button id="pause">PAUSE</button><br><br>
     <button id="restart">RESTART</button>
     <div id="over" style="display:none;margin-top:10px;">GAME OVER</div>
@@ -90,7 +96,8 @@ const SHAPES=[
 ];
 
 /* ===== 状態 ===== */
-let board,piece,nextPiece;
+let board,piece,nextPiece,holdPiece=null;
+let canHold=true;
 let score,lines,level;
 let paused=false,gameOver=false;
 let softDrop=false,last=0,counter=0;
@@ -113,15 +120,17 @@ function reset(){
   refillBag();
   piece=newPiece();
   nextPiece=newPiece();
+  holdPiece=null;
+  canHold=true;
   paused=gameOver=false;
   document.getElementById("over").style.display="none";
-  updateInfo(); drawNext();
+  updateInfo(); drawNext(); drawHold();
 }
 
 /* ===== ピース ===== */
-function newPiece(){
-  const t=getFromBag();
-  return {x:3,y:0,shape:SHAPES[t],type:t,rot:0};
+function newPiece(type=null){
+  const t=type??getFromBag();
+  return {x:3,y:0,shape:SHAPES[t],type:t};
 }
 
 /* ===== 衝突 ===== */
@@ -135,12 +144,10 @@ function collide(p,ox,oy){
   return false;
 }
 
-/* ===== 回転 ===== */
+/* ===== 回転（壁蹴り簡易） ===== */
 function rotateMatrix(m){
   return m[0].map((_,i)=>m.map(r=>r[i]).reverse());
 }
-
-/* ===== SRS簡易壁蹴り ===== */
 const kicks=[[0,0],[-1,0],[1,0],[0,-1],[-2,0],[2,0]];
 function tryRotate(){
   const r=rotateMatrix(piece.shape);
@@ -149,7 +156,6 @@ function tryRotate(){
       piece.shape=r;
       piece.x+=kx;
       piece.y+=ky;
-      piece.rot=(piece.rot+1)%4;
       return;
     }
   }
@@ -160,9 +166,10 @@ function merge(){
   piece.shape.forEach((r,y)=>
     r.forEach((v,x)=>{ if(v)board[piece.y+y][piece.x+x]=piece.type; })
   );
+  canHold=true;
 }
 
-/* ===== 消去 & スコア ===== */
+/* ===== 消去 ===== */
 function clearLines(){
   let c=0;
   board=board.filter(r=>{ if(r.every(v=>v)){c++;return false;} return true;});
@@ -188,8 +195,6 @@ function block(x,y,c,a=1){
   ctx.fillRect(x*BLOCK,y*BLOCK,BLOCK-1,BLOCK-1);
   ctx.globalAlpha=1;
 }
-
-/* ===== ゴーストピース ===== */
 function drawGhost(){
   let gy=piece.y;
   while(!collide(piece,0,gy-piece.y+1))gy++;
@@ -197,7 +202,6 @@ function drawGhost(){
     r.forEach((v,x)=>{ if(v)block(piece.x+x,gy+y,COLORS[piece.type],0.3); })
   );
 }
-
 function draw(){
   ctx.clearRect(0,0,200,400);
   drawGrid();
@@ -206,15 +210,38 @@ function draw(){
   piece.shape.forEach((r,y)=>r.forEach((v,x)=>v&&block(piece.x+x,piece.y+y,COLORS[piece.type])));
 }
 
-/* ===== NEXT ===== */
-function drawNext(){
-  const n=document.getElementById("next").getContext("2d");
-  n.clearRect(0,0,80,80);
-  const s=nextPiece.shape;
+/* ===== NEXT / HOLD ===== */
+function drawMini(canvasId,p){
+  const c=document.getElementById(canvasId).getContext("2d");
+  c.clearRect(0,0,80,80);
+  if(!p)return;
+  const s=p.shape;
   const ox=(4-s[0].length)/2, oy=(4-s.length)/2;
   s.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v){n.fillStyle=COLORS[nextPiece.type];n.fillRect((x+ox)*20,(y+oy)*20,18,18);}
+    if(v){
+      c.fillStyle=COLORS[p.type];
+      c.fillRect((x+ox)*20,(y+oy)*20,18,18);
+    }
   }));
+}
+function drawNext(){ drawMini("next",nextPiece); }
+function drawHold(){ drawMini("holdView",holdPiece); }
+
+/* ===== ホールド ===== */
+function doHold(){
+  if(!canHold)return;
+  if(!holdPiece){
+    holdPiece=newPiece(piece.type);
+    piece=nextPiece;
+    nextPiece=newPiece();
+  }else{
+    const tmp=holdPiece.type;
+    holdPiece=newPiece(piece.type);
+    piece=newPiece(tmp);
+  }
+  piece.x=3; piece.y=0;
+  canHold=false;
+  drawNext(); drawHold();
 }
 
 /* ===== UI ===== */
@@ -241,10 +268,12 @@ function update(t=0){
 }
 
 /* ===== 操作 ===== */
-left.ontouchstart  = () => !collide(piece, -1, 0) && piece.x--;
-right.ontouchstart = () => !collide(piece,  1, 0) && piece.x++;rotate.ontouchstart=tryRotate;
-down.ontouchstart=()=>softDrop=true;
-down.ontouchend=()=>softDrop=false;
+left.ontouchstart =()=>!collide(piece,-1,0)&&piece.x--;
+right.ontouchstart=()=>!collide(piece, 1,0)&&piece.x++;
+rotate.ontouchstart=tryRotate;
+down.ontouchstart =()=>softDrop=true;
+down.ontouchend   =()=>softDrop=false;
+hold.ontouchstart =doHold;
 pause.ontouchstart=()=>paused=!paused;
 restart.ontouchstart=reset;
 
