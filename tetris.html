@@ -241,9 +241,8 @@ function update(t=0){
 }
 
 /* ===== 操作 ===== */
-left.ontouchstart=()=>!collide(piece,-1,0)&&piece.x--;
-right.ontouchstart=()=>!collide(piece,1,0)&&piece.x--;
-rotate.ontouchstart=tryRotate;
+left.ontouchstart  = () => !collide(piece, -1, 0) && piece.x--;
+right.ontouchstart = () => !collide(piece,  1, 0) && piece.x++;rotate.ontouchstart=tryRotate;
 down.ontouchstart=()=>softDrop=true;
 down.ontouchend=()=>softDrop=false;
 pause.ontouchstart=()=>paused=!paused;
