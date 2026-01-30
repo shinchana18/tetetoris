@@ -77,9 +77,10 @@ button {
 </div>
 
 <script>
-/* ===== Safari ダブルタップズーム最終防御 ===== */
+/* ===== Safari ダブルタップズーム対策（button除外） ===== */
 let lastTouchEnd = 0;
 document.addEventListener("touchend", e => {
+  if (e.target.closest("button")) return;
   const now = Date.now();
   if (now - lastTouchEnd <= 300) {
     e.preventDefault();
@@ -142,7 +143,7 @@ function collide(p, ox, oy) {
 }
 
 /* ===== 回転 ===== */
-function rotate(m) {
+function rotateMatrix(m) {
   return m[0].map((_, i) => m.map(r => r[i]).reverse());
 }
 
@@ -155,7 +156,7 @@ function merge() {
   );
 }
 
-/* ===== ライン消去 & スコア（NES準拠） ===== */
+/* ===== ライン消去 & スコア ===== */
 function clearLines() {
   let c = 0;
   board = board.filter(r => {
@@ -236,20 +237,19 @@ function update(t = 0) {
 }
 
 /* ===== 操作 ===== */
-left.onclick = () => !collide(piece, -1, 0) && piece.x--;
-right.onclick = () => !collide(piece, 1, 0) && piece.x++;
-rotate.onclick = () => {
-  const r = rotate(piece.shape);
+left.ontouchstart = () => !collide(piece, -1, 0) && piece.x--;
+right.ontouchstart = () => !collide(piece, 1, 0) && piece.x++;
+
+rotate.ontouchstart = () => {
+  const r = rotateMatrix(piece.shape);
   if (!collide({ ...piece, shape: r }, 0, 0)) piece.shape = r;
 };
 
-down.onmousedown = () => softDrop = true;
-down.onmouseup = () => softDrop = false;
 down.ontouchstart = () => softDrop = true;
-down.ontouchend = () => softDrop = false;
+down.ontouchend   = () => softDrop = false;
 
-pause.onclick = () => paused = !paused;
-restart.onclick = reset;
+pause.ontouchstart = () => paused = !paused;
+restart.ontouchstart = reset;
 
 const scoreEl = document.getElementById("score");
 const levelEl = document.getElementById("level");
