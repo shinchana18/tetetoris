@@ -2,145 +2,91 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Tetris</title>
 
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  background: #000;
-  color: #fff;
-  font-family: monospace;
-  overflow: hidden;
+html,body{
+  margin:0;
+  padding:0;
+  height:100%;
+  background:#000;
+  color:#fff;
+  font-family:monospace;
+  overflow:hidden;
+}
+canvas,button{touch-action:manipulation}
+
+#container{height:100%;display:flex;flex-direction:column}
+
+#top,#controls{
+  flex-shrink:0;
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  padding:6px 0;
+  font-size:12px;
 }
 
-/* Safariズーム抑制 */
-canvas, button { touch-action: manipulation; }
-
-/* ===== 全体 ===== */
-#container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+#gameWrap{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  max-height:calc(100vh - 160px);
 }
 
-/* ===== 上部UI ===== */
-#top {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 6px 0;
-  font-size: 12px;
-}
+#game{background:#111;display:block}
 
-.mini {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.mini canvas {
-  width: 56px;
-  height: 56px;
-  background: #111;
-}
+.mini{display:flex;flex-direction:column;align-items:center}
+.mini canvas{background:#111;width:56px;height:56px}
 
-/* ===== ゲーム領域 ===== */
-#gameWrap {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  max-height: calc(100vh - 170px);
-  overflow: hidden;
-}
-
-/* canvasはJSで等倍率制御 */
-#game {
-  display: block;
-  background: #111;
-}
-
-/* ===== 操作UI ===== */
-#controls {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-around;
-  padding: 8px 4px;
-}
-
-button {
-  font-size: 16px;
-  padding: 10px;
-}
+button{font-size:16px;padding:10px}
 </style>
 </head>
 
 <body>
 <div id="container">
 
-  <!-- 上部UI -->
-  <div id="top">
-    <div>SCORE<br><span id="score">0</span></div>
-    <div>LEVEL<br><span id="level">0</span></div>
-    <div class="mini">HOLD
-      <canvas id="holdView" width="80" height="80"></canvas>
-    </div>
-    <div class="mini">NEXT
-      <canvas id="next" width="80" height="80"></canvas>
-    </div>
-  </div>
+<div id="top">
+  <div>SCORE<br><span id="score">0</span></div>
+  <div class="mini">HOLD<canvas id="holdView" width="80" height="80"></canvas></div>
+  <div class="mini">NEXT<canvas id="nextView" width="80" height="80"></canvas></div>
+</div>
 
-  <!-- ゲーム -->
-  <div id="gameWrap">
-    <canvas id="game" width="200" height="400"></canvas>
-  </div>
+<div id="gameWrap">
+  <canvas id="game" width="200" height="400"></canvas>
+</div>
 
-  <!-- 操作UI -->
-  <div id="controls">
-    <button id="left">◀</button>
-    <button id="rotate">⟳</button>
-    <button id="right">▶</button>
-    <button id="down">▼</button>
-    <button id="hold">HOLD</button>
-    <button id="pause">⏸</button>
-  </div>
+<div id="controls">
+  <button id="left">◀</button>
+  <button id="rotate">⟳</button>
+  <button id="right">▶</button>
+  <button id="down">▼</button>
+  <button id="hold">HOLD</button>
+  <button id="pause">⏸</button>
+</div>
 
 </div>
 
 <script>
-/* ===== Safari ダブルタップズーム抑制 ===== */
-let lastTouchEnd = 0;
-document.addEventListener("touchend", e => {
-  if (e.target.closest("button")) return;
-  const now = Date.now();
-  if (now - lastTouchEnd <= 300) e.preventDefault();
-  lastTouchEnd = now;
-}, { passive: false });
+/* ===== Safariズーム抑制 ===== */
+let lastTouchEnd=0;
+document.addEventListener("touchend",e=>{
+  if(e.target.closest("button"))return;
+  const n=Date.now();
+  if(n-lastTouchEnd<=300)e.preventDefault();
+  lastTouchEnd=n;
+},{passive:false});
 
 /* ===== 定数 ===== */
-const COLS = 10, ROWS = 20, SIZE = 20;
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const COLS=10,ROWS=20,SIZE=20;
+const canvas=game,ctx=canvas.getContext("2d");
+const nextCtx=nextView.getContext("2d");
+const holdCtx=holdView.getContext("2d");
 
-/* ===== 正方形スケーリング ===== */
-function resizeCanvas() {
-  const wrap = document.getElementById("gameWrap");
-  const scale = Math.min(
-    wrap.clientWidth / canvas.width,
-    wrap.clientHeight / canvas.height
-  );
-  canvas.style.width  = canvas.width  * scale + "px";
-  canvas.style.height = canvas.height * scale + "px";
-}
-window.addEventListener("resize", resizeCanvas);
-
-/* ===== 色・形 ===== */
-const COLORS = [null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
-const SHAPES = [
+const COLORS=[null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
+const SHAPES=[
  [],
  [[1,1,1,1]],
  [[2,0,0],[2,2,2]],
@@ -152,145 +98,168 @@ const SHAPES = [
 ];
 
 /* ===== 状態 ===== */
-let board, piece, nextPiece, holdPiece = null;
-let canHold = true;
-let paused = false, softDrop = false, gameOver = false;
-let bag = [], dropCounter = 0, last = 0;
+let board,piece,nextPiece,holdPiece=null;
+let canHold=true,paused=false,softDrop=false,gameOver=false;
+let score=0;
+let bag=[],dropCounter=0,last=0;
 
-/* ===== 7種バッグ ===== */
-function refillBag() {
-  bag = [1,2,3,4,5,6,7].sort(() => Math.random() - 0.5);
+/* ===== サイズ調整 ===== */
+function resize(){
+  const w=gameWrap.clientWidth,h=gameWrap.clientHeight;
+  const s=Math.min(w/200,h/400);
+  canvas.style.width=200*s+"px";
+  canvas.style.height=400*s+"px";
 }
-function takeBag() {
-  if (!bag.length) refillBag();
-  return bag.pop();
-}
+window.addEventListener("resize",resize);
+
+/* ===== バッグ ===== */
+function refillBag(){bag=[1,2,3,4,5,6,7].sort(()=>Math.random()-0.5)}
+function drawBag(){if(!bag.length)refillBag();return bag.pop()}
 
 /* ===== 初期化 ===== */
-function reset() {
-  board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
+function reset(){
+  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
   refillBag();
-  piece = spawn();
-  nextPiece = spawn();
-  holdPiece = null;
-  canHold = true;
-  gameOver = false;
-  resizeCanvas();
+  piece=spawn();
+  nextPiece=spawn();
+  holdPiece=null;
+  canHold=true;
+  score=0;
+  gameOver=false;
+  scoreEl();
+  resize();
 }
 
 /* ===== ピース ===== */
-function spawn(type=null) {
-  const t = type ?? takeBag();
-  return { x:3, y:0, shape:SHAPES[t], type:t };
+function spawn(t=null){
+  const type=t??drawBag();
+  return {x:3,y:0,shape:SHAPES[type],type};
 }
 
 /* ===== 判定 ===== */
-function collide(p, ox, oy) {
-  return p.shape.some((r,y)=>
-    r.some((v,x)=>{
-      if(!v) return false;
-      const nx = p.x + x + ox;
-      const ny = p.y + y + oy;
-      return nx<0 || nx>=COLS || ny>=ROWS || board[ny]?.[nx];
-    })
-  );
+function collide(p,ox,oy){
+  return p.shape.some((r,y)=>r.some((v,x)=>{
+    if(!v)return false;
+    const nx=p.x+x+ox,ny=p.y+y+oy;
+    return nx<0||nx>=COLS||ny>=ROWS||board[ny]?.[nx];
+  }));
 }
 
-/* ===== 回転（名前衝突回避） ===== */
-function rotateMatrix(m) {
+/* ===== 回転 ===== */
+function rotateMatrix(m){
   return m[0].map((_,i)=>m.map(r=>r[i]).reverse());
 }
-const kicks = [[0,0],[-1,0],[1,0],[0,-1]];
-function tryRotate() {
-  const r = rotateMatrix(piece.shape);
-  for (const [kx,ky] of kicks) {
-    if (!collide({...piece, shape:r}, kx, ky)) {
-      piece.shape = r;
-      piece.x += kx;
-      piece.y += ky;
-      break;
+const kicks=[[0,0],[-1,0],[1,0],[0,-1]];
+function tryRotate(){
+  const r=rotateMatrix(piece.shape);
+  for(const[kx,ky]of kicks){
+    if(!collide({...piece,shape:r},kx,ky)){
+      piece.shape=r;piece.x+=kx;piece.y+=ky;break;
     }
   }
+}
+
+/* ===== ライン消去 ===== */
+function clearLines(){
+  let c=0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(board[y].every(v=>v)){
+      board.splice(y,1);
+      board.unshift(Array(COLS).fill(0));
+      c++;y++;
+    }
+  }
+  score+=c*100;
+  scoreEl();
 }
 
 /* ===== 描画 ===== */
-function drawBlock(x,y,c,a=1) {
-  ctx.globalAlpha = a;
-  ctx.fillStyle = c;
-  ctx.fillRect(x*SIZE, y*SIZE, SIZE-1, SIZE-1);
-  ctx.globalAlpha = 1;
+function block(ctx,x,y,c,a=1){
+  ctx.globalAlpha=a;
+  ctx.fillStyle=c;
+  ctx.fillRect(x*SIZE,y*SIZE,SIZE-1,SIZE-1);
+  ctx.globalAlpha=1;
 }
-function draw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  board.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) drawBlock(x,y,COLORS[v]);
+function drawGrid(){
+  ctx.strokeStyle="#222";
+  for(let x=0;x<=COLS;x++){
+    ctx.beginPath();ctx.moveTo(x*SIZE,0);ctx.lineTo(x*SIZE,400);ctx.stroke();
+  }
+  for(let y=0;y<=ROWS;y++){
+    ctx.beginPath();ctx.moveTo(0,y*SIZE);ctx.lineTo(200,y*SIZE);ctx.stroke();
+  }
+}
+
+function drawMini(ctx,p){
+  ctx.clearRect(0,0,80,80);
+  if(!p)return;
+  p.shape.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v)block(ctx,x+1,y+1,COLORS[p.type]);
   }));
+}
 
-  let gy = piece.y;
-  while (!collide(piece,0,gy-piece.y+1)) gy++;
+function draw(){
+  ctx.clearRect(0,0,200,400);
+  drawGrid();
+  board.forEach((r,y)=>r.forEach((v,x)=>v&&block(ctx,x,y,COLORS[v])));
+
+  let gy=piece.y;
+  while(!collide(piece,0,gy-piece.y+1))gy++;
   piece.shape.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) drawBlock(piece.x+x, gy+y, COLORS[piece.type], 0.3);
+    if(v)block(ctx,piece.x+x,gy+y,COLORS[piece.type],0.3);
   }));
 
   piece.shape.forEach((r,y)=>r.forEach((v,x)=>{
-    if(v) drawBlock(piece.x+x, piece.y+y, COLORS[piece.type]);
+    if(v)block(ctx,piece.x+x,piece.y+y,COLORS[piece.type]);
   }));
+
+  drawMini(nextCtx,nextPiece);
+  drawMini(holdCtx,holdPiece);
 }
 
 /* ===== ループ ===== */
-function update(t=0) {
-  if (paused || gameOver) {
-    requestAnimationFrame(update);
-    return;
-  }
-  const delta = t - last;
-  last = t;
-  dropCounter += delta;
-
-  const speed = softDrop ? 50 : 600;
-  if (dropCounter > speed) {
-    if (!collide(piece,0,1)) piece.y++;
-    else {
+function update(t=0){
+  if(paused||gameOver){requestAnimationFrame(update);return}
+  const d=t-last;last=t;dropCounter+=d;
+  const sp=softDrop?50:600;
+  if(dropCounter>sp){
+    if(!collide(piece,0,1))piece.y++;
+    else{
       piece.shape.forEach((r,y)=>r.forEach((v,x)=>{
-        if(v) board[piece.y+y][piece.x+x] = piece.type;
+        if(v)board[piece.y+y][piece.x+x]=piece.type;
       }));
-      piece = nextPiece;
-      nextPiece = spawn();
-      canHold = true;
-      if (collide(piece,0,0)) gameOver = true;
+      clearLines();
+      piece=nextPiece;
+      nextPiece=spawn();
+      canHold=true;
+      if(collide(piece,0,0))gameOver=true;
     }
-    dropCounter = 0;
+    dropCounter=0;
   }
   draw();
   requestAnimationFrame(update);
 }
 
-/* ===== 操作 ===== */
-left.ontouchstart   = () => !collide(piece,-1,0) && piece.x--;
-right.ontouchstart  = () => !collide(piece, 1,0) && piece.x++;
-rotate.ontouchstart = tryRotate;
-down.ontouchstart   = () => softDrop = true;
-down.ontouchend     = () => softDrop = false;
-hold.ontouchstart   = () => {
-  if (!canHold) return;
-  if (!holdPiece) {
-    holdPiece = spawn(piece.type);
-    piece = nextPiece;
-    nextPiece = spawn();
-  } else {
-    [piece, holdPiece] = [spawn(holdPiece.type), spawn(piece.type)];
-  }
-  piece.x = 3;
-  piece.y = 0;
-  canHold = false;
+/* ===== UI ===== */
+function scoreEl(){score.textContent=score}
+
+left.ontouchstart =()=>!collide(piece,-1,0)&&piece.x--;
+right.ontouchstart=()=>!collide(piece, 1,0)&&piece.x++;
+rotate.ontouchstart=tryRotate;
+down.ontouchstart =()=>softDrop=true;
+down.ontouchend   =()=>softDrop=false;
+pause.ontouchstart=()=>paused=!paused;
+hold.ontouchstart =()=>{
+  if(!canHold)return;
+  if(!holdPiece){holdPiece=spawn(piece.type);piece=nextPiece;nextPiece=spawn();}
+  else{[piece,holdPiece]=[spawn(holdPiece.type),spawn(piece.type)]}
+  piece.x=3;piece.y=0;canHold=false;
 };
-pause.ontouchstart  = () => paused = !paused;
 
 /* ===== 開始 ===== */
 reset();
 update();
 </script>
-
 </body>
 </html>
