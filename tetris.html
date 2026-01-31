@@ -6,15 +6,7 @@
 <title>Tetris</title>
 
 <style>
-html,body{
-  margin:0;
-  padding:0;
-  height:100%;
-  background:#000;
-  color:#fff;
-  font-family:monospace;
-  overflow:hidden;
-}
+html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:monospace;overflow:hidden}
 canvas,button{touch-action:manipulation}
 
 #container{height:100%;display:flex;flex-direction:column}
@@ -50,6 +42,8 @@ button{font-size:16px;padding:10px}
 
 <div id="top">
   <div>SCORE<br><span id="score">0</span></div>
+  <div>LEVEL<br><span id="level">0</span></div>
+  <div>LINES<br><span id="lines">0</span></div>
   <div class="mini">HOLD<canvas id="holdView" width="80" height="80"></canvas></div>
   <div class="mini">NEXT<canvas id="nextView" width="80" height="80"></canvas></div>
 </div>
@@ -100,10 +94,11 @@ const SHAPES=[
 /* ===== 状態 ===== */
 let board,piece,nextPiece,holdPiece=null;
 let canHold=true,paused=false,softDrop=false,gameOver=false;
-let score=0;
+
+let score=0,totalLines=0,level=0;
 let bag=[],dropCounter=0,last=0;
 
-/* ===== サイズ調整 ===== */
+/* ===== サイズ ===== */
 function resize(){
   const w=gameWrap.clientWidth,h=gameWrap.clientHeight;
   const s=Math.min(w/200,h/400);
@@ -125,8 +120,10 @@ function reset(){
   holdPiece=null;
   canHold=true;
   score=0;
+  totalLines=0;
+  level=0;
   gameOver=false;
-  scoreEl();
+  updateHUD();
   resize();
 }
 
@@ -159,6 +156,12 @@ function tryRotate(){
   }
 }
 
+/* ===== 本家準拠スコア ===== */
+function lineScore(count){
+  const base=[0,100,300,500,800];
+  return base[count]*(level+1);
+}
+
 /* ===== ライン消去 ===== */
 function clearLines(){
   let c=0;
@@ -169,8 +172,18 @@ function clearLines(){
       c++;y++;
     }
   }
-  score+=c*100;
-  scoreEl();
+  if(c){
+    totalLines+=c;
+    score+=lineScore(c);
+    level=Math.floor(totalLines/10);
+    updateHUD();
+  }
+}
+
+/* ===== 速度 ===== */
+function dropInterval(){
+  const ms=700-(level*50);
+  return Math.max(ms,100);
 }
 
 /* ===== 描画 ===== */
@@ -202,6 +215,7 @@ function drawMini(ctx,p){
 function draw(){
   ctx.clearRect(0,0,200,400);
   drawGrid();
+
   board.forEach((r,y)=>r.forEach((v,x)=>v&&block(ctx,x,y,COLORS[v])));
 
   let gy=piece.y;
@@ -218,14 +232,26 @@ function draw(){
   drawMini(holdCtx,holdPiece);
 }
 
+/* ===== HUD ===== */
+function updateHUD(){
+  score.textContent=score;
+  levelEl.textContent=level;
+  lines.textContent=totalLines;
+}
+const levelEl=document.getElementById("level");
+
 /* ===== ループ ===== */
 function update(t=0){
   if(paused||gameOver){requestAnimationFrame(update);return}
   const d=t-last;last=t;dropCounter+=d;
-  const sp=softDrop?50:600;
+
+  const sp=softDrop?50:dropInterval();
+
   if(dropCounter>sp){
-    if(!collide(piece,0,1))piece.y++;
-    else{
+    if(!collide(piece,0,1)){
+      piece.y++;
+      if(softDrop)score+=1; // 本家ソフトドロップ
+    }else{
       piece.shape.forEach((r,y)=>r.forEach((v,x)=>{
         if(v)board[piece.y+y][piece.x+x]=piece.type;
       }));
@@ -237,24 +263,32 @@ function update(t=0){
     }
     dropCounter=0;
   }
+
   draw();
   requestAnimationFrame(update);
 }
 
-/* ===== UI ===== */
-function scoreEl(){score.textContent=score}
-
+/* ===== 操作 ===== */
 left.ontouchstart =()=>!collide(piece,-1,0)&&piece.x--;
 right.ontouchstart=()=>!collide(piece, 1,0)&&piece.x++;
 rotate.ontouchstart=tryRotate;
 down.ontouchstart =()=>softDrop=true;
 down.ontouchend   =()=>softDrop=false;
 pause.ontouchstart=()=>paused=!paused;
+
 hold.ontouchstart =()=>{
   if(!canHold)return;
-  if(!holdPiece){holdPiece=spawn(piece.type);piece=nextPiece;nextPiece=spawn();}
-  else{[piece,holdPiece]=[spawn(holdPiece.type),spawn(piece.type)]}
-  piece.x=3;piece.y=0;canHold=false;
+  if(!holdPiece){
+    holdPiece=spawn(piece.type);
+    piece=nextPiece;
+    nextPiece=spawn();
+  }else{
+    const t=holdPiece.type;
+    holdPiece=spawn(piece.type);
+    piece=spawn(t);
+  }
+  piece.x=3;piece.y=0;
+  canHold=false;
 };
 
 /* ===== 開始 ===== */
