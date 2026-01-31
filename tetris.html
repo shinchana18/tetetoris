@@ -11,12 +11,11 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: #000;
   color: #fff;
-  height: 100%;
   font-family: monospace;
   overflow: hidden;
-  touch-action: manipulation;
 }
 
 canvas, button { touch-action: manipulation; }
@@ -34,6 +33,7 @@ canvas, button { touch-action: manipulation; }
   align-items: center;
   padding: 6px 0;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .mini {
@@ -41,34 +41,35 @@ canvas, button { touch-action: manipulation; }
   flex-direction: column;
   align-items: center;
 }
-
 .mini canvas {
-  width: 60px;
-  height: 60px;
+  width: 56px;
+  height: 56px;
   background: #111;
 }
 
-/* ===== ゲーム画面 ===== */
+/* ===== ゲーム領域 ===== */
 #gameWrap {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
 
 #game {
-  width: 100vw;
+  width: 100%;
   max-width: 420px;
-  height: calc(100vw * 2);
-  max-height: 840px;
+  aspect-ratio: 1 / 2;
+  height: auto;
   background: #111;
 }
 
-/* ===== 下部UI ===== */
+/* ===== 下部操作UI ===== */
 #controls {
   display: flex;
   justify-content: space-around;
-  padding: 8px 0;
+  padding: 8px 4px;
+  flex-shrink: 0;
 }
 
 button {
@@ -85,19 +86,11 @@ button {
   <div id="top">
     <div>SCORE<br><span id="score">0</span></div>
     <div>LEVEL<br><span id="level">0</span></div>
-
-    <div class="mini">
-      HOLD
-      <canvas id="holdView" width="80" height="80"></canvas>
-    </div>
-
-    <div class="mini">
-      NEXT
-      <canvas id="next" width="80" height="80"></canvas>
-    </div>
+    <div class="mini">HOLD<canvas id="holdView" width="80" height="80"></canvas></div>
+    <div class="mini">NEXT<canvas id="next" width="80" height="80"></canvas></div>
   </div>
 
-  <!-- ゲーム画面 -->
+  <!-- ゲーム -->
   <div id="gameWrap">
     <canvas id="game" width="200" height="400"></canvas>
   </div>
@@ -113,136 +106,5 @@ button {
   </div>
 
 </div>
-
-<script>
-/* ===== Safariズーム対策 ===== */
-let lastTouchEnd=0;
-document.addEventListener("touchend",e=>{
-  if(e.target.closest("button"))return;
-  const n=Date.now();
-  if(n-lastTouchEnd<=300)e.preventDefault();
-  lastTouchEnd=n;
-},{passive:false});
-
-/* ===== 定数 ===== */
-const COLS=10,ROWS=20,BLOCK=20;
-const ctx=document.getElementById("game").getContext("2d");
-
-const COLORS=[null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
-const SHAPES=[
- [],
- [[1,1,1,1]],
- [[2,0,0],[2,2,2]],
- [[0,0,3],[3,3,3]],
- [[4,4],[4,4]],
- [[0,5,5],[5,5,0]],
- [[0,6,0],[6,6,6]],
- [[7,7,0],[0,7,7]]
-];
-
-/* ===== 状態 ===== */
-let board,piece,nextPiece,holdPiece=null;
-let canHold=true;
-let score=0,lines=0,level=0;
-let paused=false,gameOver=false;
-let softDrop=false,last=0,counter=0;
-
-/* ===== 7種バッグ ===== */
-let bag=[];
-function refillBag(){
-  bag=[1,2,3,4,5,6,7].sort(()=>Math.random()-0.5);
-}
-function getFromBag(){
-  if(!bag.length)refillBag();
-  return bag.pop();
-}
-
-/* ===== 初期化 ===== */
-function reset(){
-  board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
-  score=lines=level=0;
-  refillBag();
-  piece=newPiece();
-  nextPiece=newPiece();
-  holdPiece=null;
-  canHold=true;
-}
-
-/* ===== ピース ===== */
-function newPiece(t=null){
-  const type=t??getFromBag();
-  return {x:3,y:0,shape:SHAPES[type],type};
-}
-
-/* ===== 判定 ===== */
-function collide(p,ox,oy){
-  return p.shape.some((r,y)=>
-    r.some((v,x)=>{
-      if(!v)return false;
-      const nx=p.x+x+ox, ny=p.y+y+oy;
-      return nx<0||nx>=COLS||ny>=ROWS||board[ny]?.[nx];
-    })
-  );
-}
-
-/* ===== 回転＋壁蹴り ===== */
-function rotate(m){return m[0].map((_,i)=>m.map(r=>r[i]).reverse());}
-const kicks=[[0,0],[-1,0],[1,0],[0,-1]];
-function tryRotate(){
-  const r=rotate(piece.shape);
-  for(const[kx,ky]of kicks){
-    if(!collide({...piece,shape:r},kx,ky)){
-      piece.shape=r; piece.x+=kx; piece.y+=ky; break;
-    }
-  }
-}
-
-/* ===== 描画 ===== */
-function draw(){
-  ctx.clearRect(0,0,200,400);
-  board.forEach((r,y)=>r.forEach((v,x)=>v&&block(x,y,COLORS[v])));
-  piece.shape.forEach((r,y)=>r.forEach((v,x)=>v&&block(piece.x+x,piece.y+y,COLORS[piece.type])));
-}
-function block(x,y,c){
-  ctx.fillStyle=c;
-  ctx.fillRect(x*BLOCK,y*BLOCK,BLOCK-1,BLOCK-1);
-}
-
-/* ===== ループ ===== */
-function update(t=0){
-  if(paused||gameOver){requestAnimationFrame(update);return;}
-  const d=t-last; last=t; counter+=d;
-  const intv=softDrop?50:700-level*50;
-  if(counter>intv){
-    if(!collide(piece,0,1))piece.y++;
-    else{
-      piece.shape.forEach((r,y)=>r.forEach((v,x)=>v&&(board[piece.y+y][piece.x+x]=piece.type)));
-      piece=nextPiece;
-      nextPiece=newPiece();
-      canHold=true;
-    }
-    counter=0;
-  }
-  draw();
-  requestAnimationFrame(update);
-}
-
-/* ===== 操作 ===== */
-left.ontouchstart =()=>!collide(piece,-1,0)&&piece.x--;
-right.ontouchstart=()=>!collide(piece, 1,0)&&piece.x++;
-rotate.ontouchstart=tryRotate;
-down.ontouchstart =()=>softDrop=true;
-down.ontouchend   =()=>softDrop=false;
-hold.ontouchstart =()=>{
-  if(!canHold)return;
-  if(!holdPiece){holdPiece=newPiece(piece.type);piece=nextPiece;nextPiece=newPiece();}
-  else{[piece,holdPiece]=[newPiece(holdPiece.type),newPiece(piece.type)];}
-  piece.x=3;piece.y=0;canHold=false;
-};
-pause.ontouchstart=()=>paused=!paused;
-
-/* ===== 起動 ===== */
-reset(); update();
-</script>
 </body>
 </html>
