@@ -18,9 +18,7 @@ html, body {
 }
 
 /* Safariズーム抑制 */
-canvas, button {
-  touch-action: manipulation;
-}
+canvas, button { touch-action: manipulation; }
 
 /* ===== 全体 ===== */
 #container {
@@ -56,11 +54,11 @@ canvas, button {
   display: flex;
   justify-content: center;
   align-items: center;
-  max-height: calc(100vh - 170px); /* 上下UI分を除外 */
+  max-height: calc(100vh - 170px);
   overflow: hidden;
 }
 
-/* canvasはCSSで引き伸ばさない */
+/* canvasはJSで等倍率制御 */
 #game {
   display: block;
   background: #111;
@@ -98,7 +96,6 @@ button {
 
   <!-- ゲーム -->
   <div id="gameWrap">
-    <!-- 内部解像度は固定 200×400 -->
     <canvas id="game" width="200" height="400"></canvas>
   </div>
 
@@ -129,16 +126,15 @@ const COLS = 10, ROWS = 20, SIZE = 20;
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-/* ===== 正方形を保証するリサイズ ===== */
+/* ===== 正方形スケーリング ===== */
 function resizeCanvas() {
   const wrap = document.getElementById("gameWrap");
-  const w = wrap.clientWidth;
-  const h = wrap.clientHeight;
-
-  const scale = Math.min(w / canvas.width, h / canvas.height);
-
-  canvas.style.width  = (canvas.width  * scale) + "px";
-  canvas.style.height = (canvas.height * scale) + "px";
+  const scale = Math.min(
+    wrap.clientWidth / canvas.width,
+    wrap.clientHeight / canvas.height
+  );
+  canvas.style.width  = canvas.width  * scale + "px";
+  canvas.style.height = canvas.height * scale + "px";
 }
 window.addEventListener("resize", resizeCanvas);
 
@@ -200,13 +196,13 @@ function collide(p, ox, oy) {
   );
 }
 
-/* ===== 回転 + 壁蹴り ===== */
-function rotate(m) {
+/* ===== 回転（名前衝突回避） ===== */
+function rotateMatrix(m) {
   return m[0].map((_,i)=>m.map(r=>r[i]).reverse());
 }
 const kicks = [[0,0],[-1,0],[1,0],[0,-1]];
 function tryRotate() {
-  const r = rotate(piece.shape);
+  const r = rotateMatrix(piece.shape);
   for (const [kx,ky] of kicks) {
     if (!collide({...piece, shape:r}, kx, ky)) {
       piece.shape = r;
@@ -224,7 +220,6 @@ function drawBlock(x,y,c,a=1) {
   ctx.fillRect(x*SIZE, y*SIZE, SIZE-1, SIZE-1);
   ctx.globalAlpha = 1;
 }
-
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -272,12 +267,12 @@ function update(t=0) {
 }
 
 /* ===== 操作 ===== */
-left.ontouchstart  = () => !collide(piece,-1,0) && piece.x--;
-right.ontouchstart = () => !collide(piece, 1,0) && piece.x++;
+left.ontouchstart   = () => !collide(piece,-1,0) && piece.x--;
+right.ontouchstart  = () => !collide(piece, 1,0) && piece.x++;
 rotate.ontouchstart = tryRotate;
-down.ontouchstart = () => softDrop = true;
-down.ontouchend   = () => softDrop = false;
-hold.ontouchstart = () => {
+down.ontouchstart   = () => softDrop = true;
+down.ontouchend     = () => softDrop = false;
+hold.ontouchstart   = () => {
   if (!canHold) return;
   if (!holdPiece) {
     holdPiece = spawn(piece.type);
@@ -290,7 +285,7 @@ hold.ontouchstart = () => {
   piece.y = 0;
   canHold = false;
 };
-pause.ontouchstart = () => paused = !paused;
+pause.ontouchstart  = () => paused = !paused;
 
 /* ===== 開始 ===== */
 reset();
