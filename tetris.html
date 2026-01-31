@@ -17,7 +17,7 @@ html, body {
   overflow: hidden;
 }
 
-/* Safari ダブルタップズーム防止 */
+/* Safariズーム抑制 */
 canvas, button {
   touch-action: manipulation;
 }
@@ -56,17 +56,13 @@ canvas, button {
   display: flex;
   justify-content: center;
   align-items: center;
-
-  /* これが最重要 */
-  max-height: calc(100vh - 170px);
+  max-height: calc(100vh - 170px); /* 上下UI分を除外 */
   overflow: hidden;
 }
 
+/* canvasはCSSで引き伸ばさない */
 #game {
-  width: 100%;
-  max-width: 420px;
-  max-height: 100%;
-  aspect-ratio: 1 / 2;
+  display: block;
   background: #111;
 }
 
@@ -102,6 +98,7 @@ button {
 
   <!-- ゲーム -->
   <div id="gameWrap">
+    <!-- 内部解像度は固定 200×400 -->
     <canvas id="game" width="200" height="400"></canvas>
   </div>
 
@@ -118,7 +115,7 @@ button {
 </div>
 
 <script>
-/* ===== Safari ズーム完全抑制 ===== */
+/* ===== Safari ダブルタップズーム抑制 ===== */
 let lastTouchEnd = 0;
 document.addEventListener("touchend", e => {
   if (e.target.closest("button")) return;
@@ -132,6 +129,20 @@ const COLS = 10, ROWS = 20, SIZE = 20;
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+/* ===== 正方形を保証するリサイズ ===== */
+function resizeCanvas() {
+  const wrap = document.getElementById("gameWrap");
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+
+  const scale = Math.min(w / canvas.width, h / canvas.height);
+
+  canvas.style.width  = (canvas.width  * scale) + "px";
+  canvas.style.height = (canvas.height * scale) + "px";
+}
+window.addEventListener("resize", resizeCanvas);
+
+/* ===== 色・形 ===== */
 const COLORS = [null,"#0ff","#00f","#f80","#ff0","#0f0","#f00","#a0f"];
 const SHAPES = [
  [],
@@ -147,7 +158,6 @@ const SHAPES = [
 /* ===== 状態 ===== */
 let board, piece, nextPiece, holdPiece = null;
 let canHold = true;
-let score = 0, level = 0;
 let paused = false, softDrop = false, gameOver = false;
 let bag = [], dropCounter = 0, last = 0;
 
@@ -169,6 +179,7 @@ function reset() {
   holdPiece = null;
   canHold = true;
   gameOver = false;
+  resizeCanvas();
 }
 
 /* ===== ピース ===== */
@@ -213,6 +224,7 @@ function drawBlock(x,y,c,a=1) {
   ctx.fillRect(x*SIZE, y*SIZE, SIZE-1, SIZE-1);
   ctx.globalAlpha = 1;
 }
+
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -241,7 +253,7 @@ function update(t=0) {
   last = t;
   dropCounter += delta;
 
-  const speed = softDrop ? 50 : Math.max(100, 700 - level*50);
+  const speed = softDrop ? 50 : 600;
   if (dropCounter > speed) {
     if (!collide(piece,0,1)) piece.y++;
     else {
